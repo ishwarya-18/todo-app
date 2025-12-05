@@ -1,75 +1,135 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LogOut, Shield, ListTodo } from 'lucide-react';
+import { Plus, LogOut, Shield, ListTodo, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header } from '@/components/Header';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TaskItem } from '@/components/TaskItem';
 import { useAuth } from '@/contexts/AuthContext';
+import { todosApi, Todo } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
-interface Task {
+interface TaskDisplay {
   id: string;
   title: string;
   completed: boolean;
 }
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskDisplay[]>([]);
   const [newTask, setNewTask] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
   const navigate = useNavigate();
-  const { user, logout, isAdmin, isAuthenticated } = useAuth();
+  const { user, logout, isAdmin, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    const { data, error } = await todosApi.getAll();
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+      if (error.includes('token') || error.includes('403')) {
+        logout();
+        navigate('/');
+      }
+    } else if (data) {
+      // Map backend format to frontend format
+      setTasks(data.map((todo: Todo) => ({
+        id: todo.id.toString(),
+        title: todo.task, // Backend uses 'task', frontend uses 'title'
+        completed: todo.completed,
+      })));
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
+    if (authLoading) return;
+    
     if (!isAuthenticated) {
       navigate('/');
       return;
     }
     
-    // Load tasks from localStorage for demo purposes
-    const savedTasks = localStorage.getItem('tasks');
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
-    }
-  }, [isAuthenticated, navigate]);
+    fetchTasks();
+  }, [isAuthenticated, authLoading, navigate]);
 
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  const handleAddTask = (e: React.FormEvent) => {
+  const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.trim()) return;
 
-    const task: Task = {
-      id: Date.now().toString(),
-      title: newTask.trim(),
-      completed: false,
-    };
-
-    setTasks([...tasks, task]);
-    setNewTask('');
+    setIsAdding(true);
+    const { data, error } = await todosApi.create(newTask.trim());
     
-    toast({
-      title: "Task added",
-      description: "Your new task has been added successfully.",
-    });
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    } else if (data) {
+      setTasks([...tasks, {
+        id: data.id.toString(),
+        title: data.task,
+        completed: data.completed,
+      }]);
+      setNewTask('');
+      toast({
+        title: "Task added",
+        description: "Your new task has been added successfully.",
+      });
+    }
+    setIsAdding(false);
   };
 
-  const handleToggleTask = (id: string) => {
-    setTasks(tasks.map(task =>
-      task.id === id ? { ...task, completed: !task.completed } : task
+  const handleToggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    const newCompleted = !task.completed;
+    
+    // Optimistic update
+    setTasks(tasks.map(t =>
+      t.id === id ? { ...t, completed: newCompleted } : t
     ));
+
+    const { error } = await todosApi.toggleComplete(parseInt(id), newCompleted);
+    
+    if (error) {
+      // Revert on error
+      setTasks(tasks.map(t =>
+        t.id === id ? { ...t, completed: !newCompleted } : t
+      ));
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteTask = (id: string) => {
-    setTasks(tasks.filter(task => task.id !== id));
+  const handleDeleteTask = async (id: string) => {
+    const { error } = await todosApi.delete(parseInt(id));
     
-    toast({
-      title: "Task deleted",
-      description: "The task has been removed.",
-    });
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    } else {
+      setTasks(tasks.filter(task => task.id !== id));
+      toast({
+        title: "Task deleted",
+        description: "The task has been removed.",
+      });
+    }
   };
 
   const handleLogout = () => {
@@ -84,6 +144,14 @@ export default function Tasks() {
   const completedCount = tasks.filter(t => t.completed).length;
   const pendingCount = tasks.length - completedCount;
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <ThemeToggle />
@@ -91,7 +159,7 @@ export default function Tasks() {
       <div className="max-w-xl mx-auto px-4 py-8 md:py-12">
         <Header 
           title="Task Manager" 
-          subtitle={`Welcome, ${user?.name || 'User'}`} 
+          subtitle="Welcome to Your Task Manager" 
         />
 
         {/* Stats */}
@@ -129,9 +197,14 @@ export default function Tasks() {
               value={newTask}
               onChange={(e) => setNewTask(e.target.value)}
               className="flex-grow"
+              disabled={isAdding}
             />
-            <Button type="submit" disabled={!newTask.trim()}>
-              <Plus className="w-5 h-5" />
+            <Button type="submit" disabled={!newTask.trim() || isAdding}>
+              {isAdding ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
               <span className="hidden sm:inline ml-1">Add</span>
             </Button>
           </div>
@@ -139,7 +212,12 @@ export default function Tasks() {
 
         {/* Task List */}
         <div className="space-y-3 mb-8">
-          {tasks.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12 animate-fade-in">
+              <Loader2 className="w-8 h-8 mx-auto text-primary animate-spin mb-4" />
+              <p className="text-muted-foreground">Loading tasks...</p>
+            </div>
+          ) : tasks.length === 0 ? (
             <div className="text-center py-12 animate-fade-in">
               <ListTodo className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
               <p className="text-muted-foreground text-lg">No tasks yet!</p>
@@ -160,6 +238,16 @@ export default function Tasks() {
             ))
           )}
         </div>
+
+        {/* Refresh Button */}
+        {!isLoading && (
+          <div className="flex justify-center mb-6">
+            <Button variant="ghost" size="sm" onClick={fetchTasks}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 animate-fade-in">

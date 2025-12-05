@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { decodeJwt, isTokenExpired } from '@/lib/jwt';
 
 interface User {
-  id: string;
+  id: number;
   email: string;
   name: string;
   role: 'user' | 'admin';
@@ -10,10 +11,11 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (token: string, user: User) => void;
+  login: (token: string) => void;
   logout: () => void;
   isAdmin: boolean;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,34 +23,51 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
     
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch {
+    if (storedToken) {
+      if (isTokenExpired(storedToken)) {
+        // Token expired, clear it
         localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        setIsLoading(false);
+        return;
+      }
+
+      const payload = decodeJwt(storedToken);
+      if (payload) {
+        setToken(storedToken);
+        setUser({
+          id: payload.userId,
+          email: '', // Email not stored in JWT
+          name: '', // Name not stored in JWT
+          role: payload.role,
+        });
       }
     }
+    setIsLoading(false);
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+  const login = (newToken: string) => {
+    const payload = decodeJwt(newToken);
+    if (payload) {
+      setToken(newToken);
+      setUser({
+        id: payload.userId,
+        email: '',
+        name: '',
+        role: payload.role,
+      });
+      localStorage.setItem('token', newToken);
+    }
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
   return (
@@ -60,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         isAdmin: user?.role === 'admin',
         isAuthenticated: !!token,
+        isLoading,
       }}
     >
       {children}

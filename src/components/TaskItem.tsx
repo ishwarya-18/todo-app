@@ -37,7 +37,7 @@ export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
 
       <span
         className={cn(
-          "flex-grow text-base transition-all duration-200",
+          "flex-grow text-base transition-all duration-200 break-words",
           task.completed
             ? "line-through text-muted-foreground/60"
             : "text-foreground"
