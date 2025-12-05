@@ -1,24 +1,40 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2, Users, Shield } from 'lucide-react';
+import { ArrowLeft, Trash2, Users, Shield, Loader2, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
+import { usersApi, User } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
 
 export default function Admin() {
   const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAdmin, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    const { data, error } = await usersApi.getAll();
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+      if (error.includes('denied') || error.includes('403')) {
+        navigate('/tasks');
+      }
+    } else if (data) {
+      setUsers(data);
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
+    if (authLoading) return;
+    
     if (!isAuthenticated) {
       navigate('/');
       return;
@@ -33,21 +49,54 @@ export default function Admin() {
       return;
     }
 
-    // Mock users data - replace with actual API call
-    setUsers([
-      { id: '1', email: 'admin@example.com', name: 'Admin User', role: 'admin' },
-      { id: '2', email: 'john@example.com', name: 'John Doe', role: 'user' },
-      { id: '3', email: 'jane@example.com', name: 'Jane Smith', role: 'user' },
-    ]);
-  }, [isAuthenticated, isAdmin, navigate]);
+    fetchUsers();
+  }, [isAuthenticated, isAdmin, authLoading, navigate]);
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
-    toast({
-      title: "User deleted",
-      description: "The user has been removed from the system.",
-    });
+  const handleDeleteUser = async (userId: number) => {
+    const { error } = await usersApi.delete(userId);
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    } else {
+      setUsers(users.filter(user => user.id !== userId));
+      toast({
+        title: "User deleted",
+        description: "The user has been removed from the system.",
+      });
+    }
   };
+
+  const handlePromoteUser = async (userId: number) => {
+    const { error } = await usersApi.promote(userId);
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    } else {
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: 'admin' } : user
+      ));
+      toast({
+        title: "User promoted",
+        description: "The user has been promoted to admin.",
+      });
+    }
+  };
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -111,19 +160,32 @@ export default function Admin() {
                             ? 'bg-primary/10 text-primary' 
                             : 'bg-muted text-muted-foreground'
                         }`}>
-                          {user.role}
+                          {user.role || 'user'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          disabled={user.role === 'admin'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          {user.role !== 'admin' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePromoteUser(user.id)}
+                              className="text-accent hover:text-accent hover:bg-accent/10"
+                              title="Promote to admin"
+                            >
+                              <Crown className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={user.role === 'admin'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

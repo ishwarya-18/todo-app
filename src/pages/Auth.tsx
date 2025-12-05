@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Header } from '@/components/Header';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
+import { authApi } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,44 +17,89 @@ export default function Auth() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const validateForm = () => {
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return false;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+
+    if (password.length < 4) {
+      setError('Password must be at least 4 characters');
+      return false;
+    }
+
+    if (!isLogin) {
+      if (!name.trim()) {
+        setError('Please enter your name');
+        return false;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!isLogin && password !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match!",
-        variant: "destructive",
-      });
-      return;
-    }
+    setError('');
+
+    if (!validateForm()) return;
 
     setIsLoading(true);
 
-    // Simulate API call - Replace with your actual backend endpoint
-    setTimeout(() => {
-      // Mock successful login/signup
-      const mockUser = {
-        id: '1',
-        email,
-        name: name || email.split('@')[0],
-        role: email.includes('admin') ? 'admin' as const : 'user' as const,
-      };
-      
-      login('mock-jwt-token', mockUser);
-      
-      toast({
-        title: isLogin ? "Welcome back!" : "Account created!",
-        description: isLogin ? "Successfully logged in." : "You can now start managing your tasks.",
-      });
-      
-      navigate('/tasks');
+    try {
+      if (isLogin) {
+        const { data, error } = await authApi.login(email, password);
+        
+        if (error) {
+          setError(error);
+          return;
+        }
+
+        if (data?.token) {
+          login(data.token);
+          toast({
+            title: "Welcome back!",
+            description: "Successfully logged in.",
+          });
+          navigate('/tasks');
+        }
+      } else {
+        const { data, error } = await authApi.signup(name, email, password);
+        
+        if (error) {
+          setError(error);
+          return;
+        }
+
+        if (data?.token) {
+          login(data.token);
+          toast({
+            title: "Account created!",
+            description: "You can now start managing your tasks.",
+          });
+          navigate('/tasks');
+        }
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Is your backend server running?');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const toggleForm = () => {
@@ -62,6 +108,7 @@ export default function Auth() {
     setPassword('');
     setConfirmPassword('');
     setName('');
+    setError('');
   };
 
   return (
@@ -75,6 +122,13 @@ export default function Auth() {
             subtitle={isLogin ? 'Login' : 'Sign Up'} 
           />
 
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-sm text-destructive animate-fade-in">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="space-y-2">
@@ -85,7 +139,6 @@ export default function Auth() {
                   placeholder="Enter your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  required={!isLogin}
                   autoComplete="name"
                 />
               </div>
@@ -99,7 +152,6 @@ export default function Auth() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
                 autoComplete="email"
               />
             </div>
@@ -112,7 +164,6 @@ export default function Auth() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
                 autoComplete={isLogin ? "current-password" : "new-password"}
               />
             </div>
@@ -126,7 +177,6 @@ export default function Auth() {
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
                   autoComplete="new-password"
                 />
               </div>
@@ -153,6 +203,10 @@ export default function Auth() {
             >
               {isLogin ? 'Register' : 'Login'}
             </button>
+          </p>
+
+          <p className="mt-4 text-center text-xs text-muted-foreground/70">
+            Backend: localhost:5000
           </p>
         </div>
       </div>
