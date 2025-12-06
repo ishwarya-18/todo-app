@@ -33,7 +33,7 @@ async function apiRequest<T>(
     return { data };
   } catch (error) {
     console.error('API Error:', error);
-    return { error: 'Network error. Make sure your backend server is running on localhost:5000' };
+    return { error: 'Network error. Please check your internet connection.' };
   }
 }
 
