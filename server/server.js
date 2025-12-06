@@ -47,6 +47,9 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Admin email - this user will automatically be set as admin
+const ADMIN_EMAIL = 'ishwaryarajendran77@gmail.com';
+
 // Initialize database tables
 const initDB = async () => {
   try {
@@ -70,6 +73,21 @@ const initDB = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Create default admin user if not exists
+    const adminExists = await pool.query('SELECT * FROM users WHERE email = $1', [ADMIN_EMAIL]);
+    if (adminExists.rows.length === 0) {
+      const hashedPassword = await bcrypt.hash('Admin@123', 10);
+      await pool.query(
+        'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)',
+        ['Admin', ADMIN_EMAIL, hashedPassword, 'admin']
+      );
+      console.log('Default admin user created: ' + ADMIN_EMAIL);
+    } else {
+      // Ensure existing user with this email is admin
+      await pool.query('UPDATE users SET role = $1 WHERE email = $2', ['admin', ADMIN_EMAIL]);
+      console.log('Admin user verified: ' + ADMIN_EMAIL);
+    }
 
     console.log('Database tables initialized');
   } catch (error) {
