@@ -7,21 +7,20 @@ export function ThemeToggle() {
 
   return (
     <Button
-  variant="ghost"
-  size="icon"
-  onClick={toggleTheme}
-  className={`
-    fixed top-4 right-4 z-50 rounded-full shadow-card hover:shadow-card-hover transition-all duration-300
-    ${isDark ? 'bg-gray-800' : 'bg-black'}
-  `}
->
-  {isDark ? (
-    <Sun className="h-5 w-5 text-yellow-400" />  {/* Bright icon in dark mode */}
-  ) : (
-    <Moon className="h-5 w-5 text-white" />       {/* White icon in light mode */}
-  )}
-  <span className="sr-only">Toggle theme</span>
-</Button>
-
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
+      className={`
+        fixed top-4 right-4 z-50 rounded-full shadow-card hover:shadow-card-hover transition-all duration-300
+        ${isDark ? 'bg-gray-800' : 'bg-black'}
+      `}
+    >
+      {isDark ? (
+        <Sun className="h-5 w-5 text-yellow-400" />
+      ) : (
+        <Moon className="h-5 w-5 text-white" />
+      )}
+      <span className="sr-only">Toggle theme</span>
+    </Button>
   );
 }
