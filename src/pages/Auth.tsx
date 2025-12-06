@@ -206,7 +206,6 @@ export default function Auth() {
           </p>
 
           <p className="mt-4 text-center text-xs text-muted-foreground/70">
-            Backend: todo-app-bzwv.onrender.com
           </p>
         </div>
       </div>
