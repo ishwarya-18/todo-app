@@ -1,5 +1,6 @@
 // API configuration for connecting to your Node.js backend on Render
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://todo-app-bzwv.onrender.com';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://todo-app-bzwv.onrender.com";
 
 interface ApiResponse<T = unknown> {
   data?: T;
@@ -10,10 +11,10 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem('token');
-  
+  const token = localStorage.getItem("token");
+
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -27,28 +28,28 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
-      return { error: data.error || data.message || 'An error occurred' };
+      return { error: data.error || data.message || "An error occurred" };
     }
 
     return { data };
   } catch (error) {
-    console.error('API Error:', error);
-    return { error: 'Network error. Please check your internet connection.' };
+    console.error("API Error:", error);
+    return { error: "Network error. Please check your internet connection." };
   }
 }
 
 // Auth API
 export const authApi = {
   login: async (email: string, password: string) => {
-    return apiRequest<{ message: string; token: string }>('/auth/login', {
-      method: 'POST',
+    return apiRequest<{ message: string; token: string }>("/auth/login", {
+      method: "POST",
       body: JSON.stringify({ email, password }),
     });
   },
 
   signup: async (name: string, email: string, password: string) => {
-    return apiRequest<{ message: string; token: string }>('/auth/signup', {
-      method: 'POST',
+    return apiRequest<{ message: string; token: string }>("/auth/signup", {
+      method: "POST",
       body: JSON.stringify({ name, email, password }),
     });
   },
@@ -64,26 +65,26 @@ export interface Todo {
 
 export const todosApi = {
   getAll: async () => {
-    return apiRequest<Todo[]>('/todos', { method: 'GET' });
+    return apiRequest<Todo[]>("/todos", { method: "GET" });
   },
 
   create: async (title: string) => {
-    return apiRequest<Todo>('/todos', {
-      method: 'POST',
+    return apiRequest<Todo>("/todos", {
+      method: "POST",
       body: JSON.stringify({ title }),
     });
   },
 
   toggleComplete: async (taskId: number, completed: boolean) => {
     return apiRequest<Todo>(`/todos/${taskId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ completed }),
     });
   },
 
   delete: async (id: number) => {
     return apiRequest<{ message: string }>(`/todos/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 };
@@ -98,18 +99,18 @@ export interface User {
 
 export const usersApi = {
   getAll: async () => {
-    return apiRequest<User[]>('/users', { method: 'GET' });
+    return apiRequest<User[]>("/users", { method: "GET" });
   },
 
   delete: async (userId: number) => {
     return apiRequest<{ message: string }>(`/users/${userId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 
   promote: async (userId: number) => {
     return apiRequest<{ message: string }>(`/users/${userId}/promote`, {
-      method: 'PUT',
+      method: "PUT",
     });
   },
 };
