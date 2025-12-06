@@ -1,6 +1,5 @@
-// API configuration for connecting to your Node.js backend
-// Uses environment variable in production, falls back to localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// API configuration for connecting to your Node.js backend on Render
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://todo-app-bzwv.onrender.com';
 
 interface ApiResponse<T = unknown> {
   data?: T;
